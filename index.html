@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MP3 Audio Visualizer</title>
+    <link rel = "icon" href = "12.png" type = "image/x-icon">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: black;
+            overflow: hidden;
+        }
+
+        #upload-btn {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            cursor: pointer;
+            z-index: 1;
+            border: none;
+            border-radius: 20px;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16);
+            transition: background-color 0.3s ease;
+            overflow: hidden;
+        }
+
+        #upload-btn:hover {
+            background-color: #45a049;
+        }
+
+        #upload-btn::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.2));
+            transform: rotate(-45deg);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #upload-btn:hover::before {
+            opacity: 1;
+        }
+
+        #visualizer-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <input type="file" id="upload-btn" accept=".mp3" /> 
+    <div id="visualizer-container"></div>
+
+    <script>
+        let audioSource = null; // Track the active audio source
+        const audioContext = new AudioContext(); // Initialize the audio context
+
+        document.getElementById('upload-btn').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const audioData = e.target.result;
+
+                if (audioSource !== null) {
+                    // Stop the currently playing audio source
+                    audioSource.stop();
+                    audioSource.disconnect();
+                }
+
+                audioContext.decodeAudioData(audioData, function(buffer) {
+                    audioSource = audioContext.createBufferSource();
+                    audioSource.buffer = buffer;
+
+                    const audioAnalyzer = audioContext.createAnalyser();
+                    audioAnalyzer.fftSize = 256;
+                    const bufferLength = audioAnalyzer.frequencyBinCount;
+                    const dataArray = new Uint8Array(bufferLength);
+
+                    audioSource.connect(audioAnalyzer);
+                    audioAnalyzer.connect(audioContext.destination);
+                    audioSource.start();
+
+                    const container = document.getElementById('visualizer-container');
+                    container.innerHTML = ''; // Clear the previous visualizer
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                    container.appendChild(canvas);
+                    const ctx = canvas.getContext('2d');
+
+                    function draw() {
+                        const barWidth = canvas.width / bufferLength;
+                        const barHeightMultiplier = canvas.height / 255;
+                        const barSpacing = 2;
+                        let x = 0;
+
+                        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
+
+                        audioAnalyzer.getByteFrequencyData(dataArray);
+
+                        for (let i = 0; i < bufferLength; i++) {
+                            const barHeight = dataArray[i] * barHeightMultiplier;
+                            const r = 255 - i * (255 / bufferLength);
+                            const g = 0;
+                            const b = i * (255 / bufferLength);
+
+                            ctx.fillStyle = `rgb(${r},${g},${b})`;
+                            ctx.fillRect(x, canvas.height - barHeight, barWidth - barSpacing, barHeight);
+
+                            x += barWidth;
+                        }
+
+                        requestAnimationFrame(draw);
+                    }
+
+                    draw();
+                });
+            }; 
+
+            reader.readAsArrayBuffer(file);
+        });
+    </script>
+</body>
+</html>
